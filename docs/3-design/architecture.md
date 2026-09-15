@@ -7,13 +7,12 @@
 One crate, `olap-pattern` — this domain's primitives, zero implementation,
 zero knowledge of any specific analytical backend:
 
-- **`traits/`** — `AnalyticalStore` (`query(query) -> RowStream`,
-  `health_check()`).
+- **`traits/`** — `AnalyticalStore` (`query(query) -> Self::Rows`,
+  `health_check()` — see "Why `Rows` is an associated type, not a boxed
+  `RowStream`" below).
 - **`vo/`** — `Query` (opaque backend-defined query text), `Row` (ordered
   `(column name, value)` pairs), `ColumnValue` (a small enum of primitives
   common across analytical backends).
-- **`types/`** — `RowStream` (`Pin<Box<dyn Stream<Item = Result<Row,
-  QueryError>>>>`), `QueryFuture` (local boxed-future wrapper).
 - **`error/`** — `QueryError` (`InvalidQuery`, `ExecutionFailed`,
   `ConnectionFailed`).
 
@@ -29,18 +28,16 @@ flowchart TD
     subgraph pattern["olap-pattern (this repo)"]
         traits["traits<br/>AnalyticalStore"]
         vo["vo<br/>Query, Row, ColumnValue"]
-        types["types<br/>RowStream, QueryFuture"]
         error["error<br/>QueryError"]
     end
 
     subgraph svc["olap-svc"]
-        core["olap-svc-core<br/>technology-free reference implementation"]
+        core["olap-svc-core<br/>technology-free reference implementation,<br/>names its own concrete Rows type"]
         saf["olap-svc-saf<br/>AnalyticalStoreFactory"]
     end
 
     core -.->|implements| traits
     core -.->|depends on| vo
-    core -.->|depends on| types
     saf -.->|wires| core
 ```
 
@@ -70,6 +67,43 @@ data — an inherent method on that concrete type, not part of this
 contract, since ingestion mechanics are legitimately backend-specific in
 a way query execution is not.
 
+## Why `Rows` is an associated type, not a boxed `RowStream`
+
+Raised as a real, checked zero-cost abstraction question in
+[olap-pattern#4](https://github.com/sweengineeringlabs/olap-pattern/issues/4):
+until v0.2.0, `query` returned `QueryFuture<'_, Result<RowStream, QueryError>>`
+— two independent heap allocations per call, one boxing the future itself
+(`QueryFuture`), one boxing the returned stream (`RowStream`,
+`Pin<Box<dyn Stream<...>>>`), plus a further heap touch on every row polled
+out of that boxed stream.
+
+`query`'s own future is fixed the same way every other trait in this
+org's zero-cost pass was: `impl Future<Output = ...> + Send + '_`
+(RPITIT, stable since 1.75) instead of a boxed wrapper — no allocation,
+statically dispatched.
+
+The stream is different, and worth explaining rather than defaulting to
+the same fix blindly: `RowStream`'s original erasure bought nothing real.
+Every concrete `AnalyticalStore` implementation already knows its own
+stream type at compile time — an in-memory backend's `futures::stream::Iter`
+over a `Vec`, a networked backend's own client-library cursor type — so
+there was never a genuine need to erase it behind `dyn Stream`. `type Rows:
+Stream<Item = Result<Row, QueryError>> + Send;` as an associated type lets
+each implementation name its own concrete type, and the compiler
+monomorphizes `query` per implementation: no allocation, no vtable, for
+either the future or the stream it produces. This is different in kind
+from `pipeline-pattern`'s `Stage` (a sibling repo's callback type), which
+keeps a real, argued box — see that repo's own architecture doc — because
+`Stage` genuinely stores heterogeneous closures at runtime; `Rows` doesn't
+have that problem, each implementation is exactly one concrete type.
+
+This makes `AnalyticalStore` no longer object-safe (associated type, same
+consequence associated types have everywhere else in this org's patterns).
+`olap-svc`'s only backend today has no real runtime-backend-selection need,
+so its factory returns `impl AnalyticalStore` directly rather than
+reaching for a `Box<dyn>`/enum-dispatch workaround — see that repo's own
+architecture doc.
+
 ## Why no `Validator` trait (yet)
 
 Same reasoning as `scheduler-pattern`'s own architecture doc: there is no
@@ -81,7 +115,7 @@ nothing to attach it to.
 ## Scope boundary
 
 This repo covers exactly `AnalyticalStore` (execute a query, stream back
-rows). Not covered, deliberately:
+rows). Not covered:
 
 - **A structured/typed query builder** — see "Why query text is opaque"
   above.

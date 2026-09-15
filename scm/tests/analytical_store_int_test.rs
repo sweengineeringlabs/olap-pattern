@@ -11,8 +11,11 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+use std::vec::IntoIter;
+
+use futures::stream::Iter;
 use futures::StreamExt as _;
-use olap_pattern::{AnalyticalStore, ColumnValue, Query, QueryError, QueryFuture, Row, RowStream};
+use olap_pattern::{AnalyticalStore, ColumnValue, Query, QueryError, Row};
 
 #[derive(Default)]
 struct StubStore {
@@ -29,26 +32,29 @@ impl StubStore {
 }
 
 impl AnalyticalStore for StubStore {
-    fn query(&self, query: Query) -> QueryFuture<'_, Result<RowStream, QueryError>> {
-        QueryFuture::new(async move {
-            let text = query.text().trim();
-            let table = text
-                .strip_prefix("SELECT * FROM ")
-                .filter(|t| !t.is_empty())
-                .ok_or_else(|| QueryError::InvalidQuery(format!("unsupported syntax: {text}")))?;
-            let rows = self
-                .tables
-                .lock()
-                .expect("lock poisoned")
-                .get(table)
-                .cloned()
-                .ok_or_else(|| QueryError::ExecutionFailed(format!("no such table: {table}")))?;
-            Ok(Box::pin(futures::stream::iter(rows.into_iter().map(Ok))) as RowStream)
-        })
+    type Rows = Iter<IntoIter<Result<Row, QueryError>>>;
+
+    async fn query(&self, query: Query) -> Result<Self::Rows, QueryError> {
+        let text = query.text().trim();
+        let table = text
+            .strip_prefix("SELECT * FROM ")
+            .filter(|t| !t.is_empty())
+            .ok_or_else(|| QueryError::InvalidQuery(format!("unsupported syntax: {text}")))?;
+        let rows: Vec<Result<Row, QueryError>> = self
+            .tables
+            .lock()
+            .expect("lock poisoned")
+            .get(table)
+            .cloned()
+            .ok_or_else(|| QueryError::ExecutionFailed(format!("no such table: {table}")))?
+            .into_iter()
+            .map(Ok)
+            .collect();
+        Ok(futures::stream::iter(rows))
     }
 
-    fn health_check(&self) -> QueryFuture<'_, Result<(), QueryError>> {
-        QueryFuture::new(async { Ok(()) })
+    async fn health_check(&self) -> Result<(), QueryError> {
+        Ok(())
     }
 }
 

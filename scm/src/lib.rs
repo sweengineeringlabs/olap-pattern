@@ -1,9 +1,11 @@
 //! `olap_pattern` — the reusable OLAP analytical-query pattern.
 //!
 //! Provides this domain's primitives: the [`AnalyticalStore`] trait
-//! (execute a query, stream back result rows), [`Query`]/[`Row`]/
-//! [`ColumnValue`]/[`RowStream`], and [`QueryError`]. Zero implementation
-//! of any kind — a single-responsibility interface package. Reference and
+//! (execute a query, stream back result rows via its own associated
+//! `Rows` stream type — see "Why `Rows` is an associated type, not a
+//! boxed `RowStream`" in `docs/3-design/architecture.md`), [`Query`]/
+//! [`Row`]/[`ColumnValue`], and [`QueryError`]. Zero implementation of
+//! any kind — a single-responsibility interface package. Reference and
 //! any technology-specific implementations live in `olap-svc` instead. A
 //! consumer depends on this crate plus `olap-svc` and defines no
 //! primitives of its own.
@@ -31,10 +33,8 @@
 
 mod error;
 mod traits;
-mod types;
 mod vo;
 
 pub use error::QueryError;
 pub use traits::AnalyticalStore;
-pub use types::{QueryFuture, RowStream};
 pub use vo::{ColumnValue, Query, Row};

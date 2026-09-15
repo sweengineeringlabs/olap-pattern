@@ -24,13 +24,19 @@ re-run the listed command after any change and expect the stated result.
 |---|------|--------|
 | 4 | `AnalyticalStore` declares exactly `query` and `health_check` | `grep -n "fn " scm/src/traits/analytical_store.rs` shows exactly two `fn` signatures |
 
-## 4. Lint gates
+## 4. Zero-cost by construction
 
 | # | Rule | Verify |
 |---|------|--------|
-| 5 | `#![deny(unsafe_code)]` enforced | `cargo build` fails on any `unsafe` block |
-| 6 | `#![warn(missing_docs)]` enforced | `cargo doc --no-deps` warns on any undocumented public item |
-| 7 | `cargo clippy --all-targets -- -D warnings` clean | Run before every commit |
-| 8 | `cargo fmt --check` clean | Run before every commit |
+| 5 | `AnalyticalStore`'s methods return `impl Future`, never a boxed future; `query`'s stream is an associated type, never a boxed `dyn Stream` | `grep -n "Pin<Box<dyn Future\|Pin<Box<dyn Stream\|QueryFuture\|RowStream" scm/src/traits/analytical_store.rs` returns nothing |
+
+## 5. Lint gates
+
+| # | Rule | Verify |
+|---|------|--------|
+| 6 | `#![deny(unsafe_code)]` enforced | `cargo build` fails on any `unsafe` block |
+| 7 | `#![warn(missing_docs)]` enforced | `cargo doc --no-deps` warns on any undocumented public item |
+| 8 | `cargo clippy --all-targets -- -D warnings` clean | Run before every commit |
+| 9 | `cargo fmt --check` clean | Run before every commit |
 
 [← 3-design index](../README.md)

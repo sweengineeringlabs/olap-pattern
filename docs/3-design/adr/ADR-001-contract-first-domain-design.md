@@ -47,11 +47,17 @@ aggregation pushdown, schema introspection) up front.
   that would be exactly the kind of "swappable third-party choice" this
   org's `core`-vs-`spi` boundary test says doesn't belong in a
   zero-implementation pattern crate.
-- **`RowStream`**: query results are streamed, not collected into a
-  `Vec<Row>` — the defining property of an analytical workload is that
-  result sets can be large and latency-tolerant; buffering the full
-  result before returning would defeat the purpose. Mirrors
+- **Query results are streamed, not collected into a `Vec<Row>`** — the
+  defining property of an analytical workload is that result sets can be
+  large and latency-tolerant; buffering the full result before returning
+  would defeat the purpose. Mirrors
   `message-broker-pattern::MessageStream`'s own streaming idiom.
+  **Amendment (v0.2.0)**: originally a boxed `RowStream` type alias
+  (`Pin<Box<dyn Stream<...>>>`); replaced with an associated `type Rows`
+  per [olap-pattern#4](https://github.com/sweengineeringlabs/olap-pattern/issues/4)
+  (zero-cost abstraction review) — see architecture.md's "Why `Rows` is an
+  associated type, not a boxed `RowStream`". The streaming decision itself
+  is unchanged, only how it's typed.
 - **`QueryError`**: `InvalidQuery` (backend couldn't parse the text),
   `ExecutionFailed` (parsed but couldn't run — e.g. unknown table),
   `ConnectionFailed` (backend unreachable). Three variants covering the
@@ -66,10 +72,10 @@ aggregation pushdown, schema introspection) up front.
 
 ## Consequences
 
-- `olap-pattern` depends on `futures` (for `RowStream`'s `Stream` bound
-  and `QueryFuture`'s boxed future) and `thiserror` (error boilerplate)
-  only — no `uuid` (unlike `scheduler-pattern`'s `JobId`; this trait has
-  no identifier type to hand back to a caller).
+- `olap-pattern` depends on `futures` (for `AnalyticalStore::Rows`'s
+  `Stream` bound) and `thiserror` (error boilerplate) only — no `uuid`
+  (unlike `scheduler-pattern`'s `JobId`; this trait has no identifier type
+  to hand back to a caller).
 - `olap-svc` (companion repo) starts with a `core` reference
   implementation only — no `spi` backend yet, since no external
   analytical technology has a real consumer demanding it. See that

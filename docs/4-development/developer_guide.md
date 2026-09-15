@@ -22,7 +22,6 @@ olap-pattern/
     │   ├── lib.rs
     │   ├── traits/          # AnalyticalStore
     │   ├── vo/               # Query, Row, ColumnValue
-    │   ├── types/            # RowStream, QueryFuture
     │   └── error/            # QueryError
     └── tests/                 # one *_int_test.rs per public trait/type
 ```
@@ -31,7 +30,7 @@ olap-pattern/
 
 - `dev` is the default branch; all work lands there first.
 - `main` gets fast-forwarded to `dev` after a shipped change, not on every commit.
-- Not yet published to crates.io. First publish will be v0.1.0.
+- Not yet published to crates.io. Current version: v0.2.0.
 
 ## Working on This Crate
 
@@ -41,9 +40,9 @@ cargo clippy --all-targets -- -D warnings
 cargo fmt --check
 ```
 
-Dependency footprint is `futures` (`RowStream`'s `Stream` bound,
-`QueryFuture`'s boxed future) and `thiserror` (error boilerplate) — verify
-with `cargo tree --depth 1` after any change that touches `Cargo.toml`.
+Dependency footprint is `futures` (`AnalyticalStore::Rows`'s `Stream`
+bound) and `thiserror` (error boilerplate) — verify with `cargo tree
+--depth 1` after any change that touches `Cargo.toml`.
 `#![deny(unsafe_code)]` and `#![warn(missing_docs)]` are enforced.
 
 ## This Is a Contract-First Crate — No Existing Pilot
