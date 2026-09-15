@@ -1,0 +1,34 @@
+[package]
+name         = "olap-pattern"
+version      = "0.1.0"
+edition      = "2021"
+license      = "MIT OR Apache-2.0"
+authors      = ["SWE Engineering Labs"]
+repository   = "https://github.com/sweengineeringlabs/olap-pattern"
+rust-version = "1.98"
+description  = "OLAP analytical query contract: execute a query, stream back result rows. Zero implementation, zero knowledge of any specific analytical backend."
+keywords     = ["olap", "analytics", "query", "pattern", "swe"]
+categories   = ["asynchronous"]
+
+[package.metadata.arch]
+application_type = "port"
+service_type     = "olap"
+
+[lib]
+name = "olap_pattern"
+path = "src/lib.rs"
+
+[dependencies]
+futures   = "0.3"
+thiserror = "2.0"
+
+[dev-dependencies]
+tokio = { version = "1.52", features = ["rt-multi-thread", "macros"] }
+
+[lints.rust]
+unsafe_code  = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
